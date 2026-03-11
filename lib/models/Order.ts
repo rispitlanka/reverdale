@@ -1,0 +1,159 @@
+import { Schema, model, models, Document, Types } from "mongoose";
+
+export type OrderItemType = "jewellery" | "product" | "sell-metal";
+export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
+export type OrderStatus =
+  | "new"
+  | "processing"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
+
+export interface OrderItem {
+  itemId: Types.ObjectId;
+  itemType: OrderItemType;
+  name: string;
+  metalType?: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+export interface StatusHistoryEntry {
+  status: OrderStatus;
+  changedAt: Date;
+  changedBy: string;
+}
+
+export interface OrderDocument extends Document {
+  orderRef: string;
+  customerId: Types.ObjectId;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  items: OrderItem[];
+  totalAmount: number;
+  paymentStatus: PaymentStatus;
+  orderStatus: OrderStatus;
+  statusHistory: StatusHistoryEntry[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const OrderItemSchema = new Schema<OrderItem>(
+  {
+    itemId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+    },
+    itemType: {
+      type: String,
+      enum: ["jewellery", "product", "sell-metal"],
+      required: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    metalType: {
+      type: String,
+      trim: true,
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+    unitPrice: {
+      type: Number,
+      required: true,
+    },
+    subtotal: {
+      type: Number,
+      required: true,
+    },
+  },
+  { _id: false }
+);
+
+const StatusHistorySchema = new Schema<StatusHistoryEntry>(
+  {
+    status: {
+      type: String,
+      enum: ["new", "processing", "shipped", "delivered", "cancelled"],
+      required: true,
+    },
+    changedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    changedBy: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+  },
+  { _id: false }
+);
+
+const OrderSchema = new Schema<OrderDocument>(
+  {
+    orderRef: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    customerId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+    },
+    customerName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    customerEmail: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    customerPhone: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    items: {
+      type: [OrderItemSchema],
+      required: true,
+      default: [],
+    },
+    totalAmount: {
+      type: Number,
+      required: true,
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid", "failed", "refunded"],
+      default: "pending",
+    },
+    orderStatus: {
+      type: String,
+      enum: ["new", "processing", "shipped", "delivered", "cancelled"],
+      default: "new",
+    },
+    statusHistory: {
+      type: [StatusHistorySchema],
+      default: [],
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const Order =
+  (models.Order as ReturnType<typeof model<OrderDocument>>) ||
+  model<OrderDocument>("Order", OrderSchema);
+
+export default Order;
