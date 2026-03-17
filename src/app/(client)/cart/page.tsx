@@ -201,13 +201,13 @@ export default function CartPage() {
                     />
                   </div>
                 </div>
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-gradient-to-r from-[#9A0156] to-[#c0016d] hover:from-[#c0016d] hover:to-[#d40179] text-white font-bold py-6 text-lg"
-                  >
-                    {loading ? 'Redirecting to Stripe...' : `Pay with Stripe (${formatCurrency(total)})`}
-                  </Button>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-[#9A0156] to-[#c0016d] hover:from-[#c0016d] hover:to-[#d40179] text-white font-bold py-6 text-lg"
+                >
+                  {loading ? 'Redirecting to Stripe...' : `Pay with Stripe (${formatCurrency(total)})`}
+                </Button>
               </form>
             </CardContent>
           </Card>
@@ -363,13 +363,14 @@ export default function CartPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Subtotal</span>
-                  <span>{formatCurrency(subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
                   <span>Tax (8%)</span>
                   <span>{formatCurrency(tax)}</span>
                 </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(subtotal)}</span>
+                </div>
+
                 <div className="flex justify-between text-muted-foreground">
                   <span>Shipping</span>
                   <span>{shippingCost === 0 ? 'FREE' : formatCurrency(shippingCost)}</span>
