@@ -100,6 +100,11 @@ export default function AdminOrdersPage() {
     null
   );
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [isSendingPaymentLink, setIsSendingPaymentLink] = useState(false);
+  const [isMarkingPaid, setIsMarkingPaid] = useState(false);
+  const [viewModalNotice, setViewModalNotice] = useState<string | null>(null);
+  const [isPaymentLinkModalOpen, setIsPaymentLinkModalOpen] = useState(false);
+  const [paymentAmountInput, setPaymentAmountInput] = useState("");
 
   const hasFilters = useMemo(
     () => !!orderStatusFilter || !!paymentStatusFilter,
@@ -172,6 +177,7 @@ export default function AdminOrdersPage() {
   async function openViewModal(orderId: string) {
     setViewOrderId(orderId);
     setViewOrderDetail(null);
+    setViewModalNotice(null);
     setIsLoadingDetail(true);
     setError(null);
 
@@ -196,6 +202,86 @@ export default function AdminOrdersPage() {
     setViewOrderId(null);
     setViewOrderDetail(null);
     setIsLoadingDetail(false);
+    setViewModalNotice(null);
+    setIsPaymentLinkModalOpen(false);
+    setPaymentAmountInput("");
+  }
+
+  function openPaymentLinkModal() {
+    if (!viewOrderDetail) return;
+    setPaymentAmountInput(String(viewOrderDetail.totalAmount ?? ""));
+    setIsPaymentLinkModalOpen(true);
+  }
+
+  function closePaymentLinkModal() {
+    setIsPaymentLinkModalOpen(false);
+  }
+
+  async function handleSendPaymentLink(customTotalAmount?: number) {
+    if (!viewOrderId) return;
+    setViewModalNotice(null);
+    setIsSendingPaymentLink(true);
+    try {
+      const res = await fetch(
+        `/api/admin/orders/${viewOrderId}/send-payment-link`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            customTotalAmount !== undefined
+              ? { totalAmount: customTotalAmount }
+              : {}
+          ),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (typeof data.checkoutUrl === "string" && data.checkoutUrl) {
+          setViewModalNotice(
+            `Email failed. Send this link manually (copy): ${data.checkoutUrl}`
+          );
+        }
+        throw new Error(data.error || "Failed to send payment link");
+      }
+      setViewModalNotice(
+        typeof data.message === "string"
+          ? data.message
+          : "Payment link sent to customer email."
+      );
+      closePaymentLinkModal();
+    } catch (err: any) {
+      setError(err?.message || "Failed to send payment link.");
+    } finally {
+      setIsSendingPaymentLink(false);
+    }
+  }
+
+  async function handleMarkOrderPaid() {
+    if (!viewOrderId) return;
+    setViewModalNotice(null);
+    setIsMarkingPaid(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${viewOrderId}/mark-paid`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to mark order as paid");
+      }
+      setViewOrderDetail((prev) =>
+        prev ? { ...prev, paymentStatus: "paid" } : prev
+      );
+      setViewModalNotice(
+        typeof data.message === "string"
+          ? data.message
+          : "Order marked as paid."
+      );
+      await fetchOrders();
+    } catch (err: any) {
+      setError(err?.message || "Failed to mark order as paid.");
+    } finally {
+      setIsMarkingPaid(false);
+    }
   }
 
   async function handleUpdateStatus() {
@@ -779,6 +865,47 @@ export default function AdminOrdersPage() {
                       </table>
                     </div>
                   </div>
+
+                  {viewOrderDetail.paymentStatus !== "paid" && (
+                    <div className="rounded-lg border border-dashed border-[#B8860B]/50 bg-[#B8860B]/5 p-4 space-y-3">
+                      <div className="text-xs font-semibold text-gray-800">
+                        Payment actions
+                      </div>
+                      <p className="text-[11px] text-gray-600">
+                        Send a secure Stripe checkout link to the customer&apos;s
+                        email. The link expires in{" "}
+                        <strong>30 minutes</strong>. Use &quot;Mark as paid&quot;
+                        when you have received payment outside Stripe (e.g. cash
+                        or e-transfer).
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={openPaymentLinkModal}
+                          disabled={isSendingPaymentLink || isMarkingPaid}
+                          className="inline-flex items-center rounded-md bg-[#635BFF] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#5449e6] disabled:opacity-60"
+                        >
+                          {isSendingPaymentLink
+                            ? "Sending…"
+                            : "Send Stripe payment link"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleMarkOrderPaid}
+                          disabled={isMarkingPaid || isSendingPaymentLink}
+                          className="inline-flex items-center rounded-md border border-green-600 bg-green-50 px-3 py-2 text-xs font-semibold text-green-800 hover:bg-green-100 disabled:opacity-60"
+                        >
+                          {isMarkingPaid ? "Updating…" : "Mark as paid"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {viewModalNotice && (
+                    <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800 whitespace-pre-wrap break-all">
+                      {viewModalNotice}
+                    </div>
+                  )}
                 </>
               )}
 
@@ -795,6 +922,60 @@ export default function AdminOrdersPage() {
           </div>
         </div>
       )}
+
+      {isPaymentLinkModalOpen && viewOrderDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-100">
+            <div className="border-b border-gray-200 px-5 py-4">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Send payment link
+              </h3>
+              <p className="mt-1 text-xs text-gray-500">
+                Is there a price change? Update the total amount before sending.
+              </p>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <label className="block text-xs font-medium text-gray-700">
+                Total amount (CAD)
+              </label>
+              <input
+                type="number"
+                min={0.5}
+                step="0.01"
+                value={paymentAmountInput}
+                onChange={(e) => setPaymentAmountInput(e.target.value)}
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#B8860B] focus:ring-1 focus:ring-[#B8860B]"
+              />
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closePaymentLinkModal}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  disabled={isSendingPaymentLink}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const parsed = Number(paymentAmountInput);
+                    if (!Number.isFinite(parsed) || parsed < 0.5) {
+                      setError("Enter a valid amount of at least CA$0.50.");
+                      return;
+                    }
+                    void handleSendPaymentLink(parsed);
+                  }}
+                  disabled={isSendingPaymentLink}
+                  className="inline-flex items-center rounded-md bg-[#635BFF] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#5449e6] disabled:opacity-60"
+                >
+                  {isSendingPaymentLink ? "Sending…" : "Send link"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
